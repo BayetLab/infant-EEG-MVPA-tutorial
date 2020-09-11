@@ -1,0 +1,15 @@
+X data, processed and z-scored to baseline (channels x samples x trials)
+Y trial condition (1 x trials)
+S participants (1 x trials)
+times time vector (1 x samples)
+nreps number of trials per condition (participants x conditions)
+
+Conditions are coded as integers from 1 to 8
+
+
+
+
+
+
+
+
