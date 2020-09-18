@@ -12,7 +12,7 @@ Datafile      = 'Adults_included.mat';
 % Run
 parforArg          = Inf;   % 0 = no parfor; Inf = parfor
 ExitMatlabWhenDone = false; % if running as batch on a cluster
-SaveAll            = true;
+SaveAll            = false;
 
 % Classification
 params_decoding.function         = 'decode_within_SVM';
@@ -76,6 +76,8 @@ if SaveAll
     if (~exist(fullfile('../results',out),'file')); save(fullfile('../results',out),'out', '-v7.3'); end
     save(fullfile('../results',out),'results','-append');
 end
+
+%figure;plot(results.times,nanmean(nanmean(reshape(results.DA,[8 550 8*8]),3)',2))
 
 %% Wrap up
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

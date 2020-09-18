@@ -3,9 +3,8 @@ function [GroupDA, params, nreps, GroupA] = decode_within_SVM(X, Y, S, params, p
 %% Within-subject decoding routine for adult EEG data
 % Adapted from pseudocode provided by Radoslaw Cichy (Cichy et al. 2014)
 
-% TODOS
+% TODO
 % Consider not including computation of the "activation" variable - unclear how useful here
-% Update way to deal with unequal numbers of trials to be less nonsensical - e.g. use cell not array
 
 %% Parameters and path
 % Parameters
@@ -29,6 +28,21 @@ GroupA  = NaN([nsubj, nt, ncond, ncond, nchan]);
 nreps = NaN([nsubj ncond]);
 for j=1:nsubj; nreps(j,:) = arrayfun(@(i) sum((Y==conds(i))&(S==subjects(j))),1:ncond); end
 
+% flexible bin size to deal with varying number of
+% trials/condition/participant
+% using algo from https://www.geeksforgeeks.org/split-the-number-into-n-parts-such-that-difference-between-the-smallest-and-the-largest-part-is-minimum/
+zp=L*ones(size(nreps)) - mod(nreps,L);
+K=repmat(floor(nreps./L), [1 1 L]);
+for k = 1:L
+    for j = 1:nsubj
+        for i = 1:ncond
+            if k > zp(j,i)
+                K(j,i, k) = K(j,i,k)+1;
+            end
+        end
+    end
+end
+
 for i = 1:length(subjects)
     tic
     
@@ -37,12 +51,11 @@ for i = 1:length(subjects)
     x=X(:,:,S==subjects(i)); % nchan x frames x ntrials
     y=Y(S==subjects(i)); % ntrials
     
-    % Fill data matrix D
-    D = NaN([ncond, nchan, nt, max(nreps(i,:))]); % ncond x nchan x  nt  x  nrep
+    % Fill data matrix D   
+    D= {[]};
     for j = 1:ncond
-        D(j,:,:,1:nreps(i,j)) = x(:,:,y==conds(j));
+        D{j} = x(:,:,y==conds(j));%flexible length accomodates varying numbers of repetitions per condition
     end
-    K = ceil(size(D,4)/L); % size of each of the L pseudo-averaging bins. for best results nreps should multiples L.
     
     % Initialize individual results matrices
     if ~params.timetime
@@ -57,49 +70,45 @@ for i = 1:length(subjects)
     hwait = waitbar(0, ['Please wait, working on participant ',num2str(i),'/', num2str(nsubj),'...']);
     afterEach(ParallelQueue, @nUpdateWaitbar);
     progress_p = 1;
-    
-    parfor (perm = 1:nperms, parforArg)%set parforarg to 0 to do a simple for loop instead of parfor
+
+   parfor (perm = 1:nperms, parforArg)%set parforarg to 0 to do a simple for loop instead of parfor
 
         send(ParallelQueue, perm);
         
         %% Form L pseudotrials per condition based on random permutation of trial order within each condition
-        % TODO: update all this to better deal with unequal numbers of trials. Use cell not array.
-        allset = 0;
-        maxit=500;
-        it=1;
-        while allset==0
-            
-           
-            % Randomly re-order repetitions
-            permutedD=NaN(size(D));% ncond x nchan x  nt  x  nrep
-            for j=1:ncond
-                permutedD(j,:,:,:) = D(j,:,:,randperm(size(D,4))); % /!\ trial order is randomized separately in each condition - important for excluding random draws that have empty pseudotrials in some conditions without this affecting how other conditions are permuted 
-            end
-            
-            % Binning data into L pseudo trials:
-            % ....first K trials go to bin 1, the next K to bin 2, etc. to form L=nrep/K pseudo trials
-            pseudo_trialD = NaN(ncond, nchan , nt, L);
+        
+        % Randomly re-order repetitions
+        permutedD= {[]};
+        for j = 1:ncond
+            permutedD{j} = D{j}(:,:,randperm(size(D{j},3)));%trial order is randomized separately in each condition, with flexible length to accomodate varying numbers of repetitions per condition
+        end
+        
+        % Binning data into L pseudo trials:
+        pseudo_trialD = NaN(ncond, nchan , nt, L);
+        trial_selector_start = NaN([ncond, L]);
+        trial_selector_end = NaN([ncond, L]);
+        for j = 1:ncond
             for step = 1:L
-                if step<L
-                    trial_selector  = (1+(step-1)*K):(K+(step-1)*K); %select trials to be averaged
-                    pseudo_trialD(:,:,:,step) = nanmean(permutedD(:,:,:,trial_selector), 4);
+                if step == 1
+                    trial_selector_start(j,step) = 1;
                 else
-                    pseudo_trialD(:,:,:,step) = nanmean(permutedD(:,:,:,(1+(step-1)*K):end), 4);
+                    trial_selector_start(j,step) = 1 + sum(K(i,j,1:(step-1)));
                 end
+                trial_selector_end(j,step) = sum(K(i,j,1:step));
+                pseudo_trialD(j,:,:,step) = nanmean(permutedD{j}(:,:,trial_selector_start(j,step) : trial_selector_end(j,step)), 3);
             end
-            
-            % Check for empty bins
-            if sum(isnan(pseudo_trialD(:))) == 0
-                allset=1;
-            else
-                if it<maxit
-                    warning('Warning: at least one NaN pseudotrial generated! Trying new permuted trial orders...')
-                    it=it+1;
-                else
-                    allset=1; %#ok<NASGU>
-                    error('Warning: Maxit reached with at least one NaN pseudotrial generated! :(( Increase maxit manually (line 70) and rerun')
-                end
-            end
+        end
+        
+        %chck1 = prod(prod(trial_selector_start(:,2:L) -
+        %trial_selector_end(:,1:(L-1)))) == 1; % no overlap between bins, all chcks == 1
+        %chck2 = sum(sum(abs(trial_selector_end - trial_selector_start +
+        %1 - squeeze(K(i,:,:))))) == 0; % bin sizes as specified by K, all chks == 0
+        %chck3 = sum(abs(trial_selector_end(:,L) - nreps(i,:)'))== 0;
+        %%all trls are used
+        
+        % Check for empty bins, for piece of mind
+        if sum(isnan(pseudo_trialD(:))) ~= 0
+            error('Warning: At least one NaN pseudotrial generated! Something is off here -- maybe fewer than L trials in some conditions?')
         end
         
         %% Loop through all pair-wise combinations of conditions
@@ -124,9 +133,10 @@ for i = 1:length(subjects)
                     MEEG_training_data=[squeeze(pseudo_trialD(condA,:, time_point_train, 1:end-1)) , squeeze(pseudo_trialD(condB, :, time_point_train, 1:end-1))];%chan x (2* (L-1))
                     % Class labels (1-A or 2-B) - size must be m by 1
                     labels_train = [ones(1,L-1) 2*ones(1,L-1)];
+                    
                     % for piece of mind
                     if (sum(isnan(MEEG_training_data))) > 0
-                        error('Code is not working to prevent empty train data. :((')
+                        error('some training data is empty! aborting...')
                     end
                     
                     % SVM classification with libsvm
@@ -152,9 +162,9 @@ for i = 1:length(subjects)
                         MEEG_testing_data=[squeeze(pseudo_trialD(condA, :, time_point_test, end))' , squeeze(pseudo_trialD(condB, :, time_point_test,end))'];%chan*2                    
                         % Class labels (1-A or 2-B) - size must be m by 1
                         labels_test  = [1 2];
-                        %for piece of mind
+                        %again, for extra piece of mind
                         if (sum(isnan(MEEG_testing_data))) > 0
-                            error('Code is not working to prevent empty train data. :((')
+                            error('some test data is empty! aborting...')
                         end
                         
                         % Predict
