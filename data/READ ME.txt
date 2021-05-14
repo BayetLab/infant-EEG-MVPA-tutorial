@@ -6,6 +6,16 @@ nreps number of trials per condition (participants x conditions)
 
 Conditions are coded as integers from 1 to 8
 
+Four sample datasets are provided: 
+- Adults_all N=9 all available artifact-free data
+- Adults_included N=8 all artifact-free data from participants included in Bayet et al 2020 (i.e., all participants with at least 50% valid trials)
+- Infants_all N=21 all available valid data
+- Infants_included N=10 all available artifact free data from participants included in Bayet et al 2020 (i.e., all participants with at least 50% valid trials)
+
+If using these data, please cite:
+
+(This paper - cotton to beaded)
+Bayet, L., Zinszer, B. D., Reilly, E., Cataldo, J. K., Pruitt, Z., Cichy, R. M., ... & Aslin, R. N. (2020). Temporal dynamics of visual representations in the infant brain. Developmental cognitive neuroscience, 45, 100860 
 
 
 
