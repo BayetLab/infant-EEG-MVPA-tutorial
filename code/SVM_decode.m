@@ -1,7 +1,14 @@
-function [GroupDA, params, nreps] = SVM_decode(X, Y, S, params, parforArg )
 
 %% Within-subject decoding routine for adult EEG data
 % Adapted from pseudocode provided by Radoslaw Cichy (Cichy et al. 2014)
+
+# Input: X = data structure containing channel data 
+# Y = corresponding trial condition labels 
+# S = corresponding participant numbers 
+# params = some decoding parameters 
+# parforArg = boolean, run in parallel or sequentially 
+
+function [GroupDA, params, nreps] = SVM_decode(X, Y, S, params, parforArg )
 
 %% Parameters and path
 % Parameters
@@ -31,10 +38,6 @@ for j=1:nsubj; nreps(j,:) = arrayfun(@(i) sum((Y==conds(i))&(S==subjects(j))),1:
 % trials/condition/participant
 % using algo from https://www.geeksforgeeks.org/split-the-number-into-n-parts-such-that-difference-between-the-smallest-and-the-largest-part-is-minimum/
 zp=L*ones(size(nreps)) - mod(nreps,L);
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%error(num2str(size(zp)))
-
-
 
 K=repmat(floor(nreps./L), [1 1 L]);
 
@@ -109,16 +112,8 @@ for i = 1:length(subjects)
                 
             end
         end
-        
-        
-        %chck1 = prod(prod(trial_selector_start(:,2:L) -
-        %trial_selector_end(:,1:(L-1)))) == 1; % no overlap between bins, all chcks == 1
-        %chck2 = sum(sum(abs(trial_selector_end - trial_selector_start +
-        %1 - squeeze(K(i,:,:))))) == 0; % bin sizes as specified by K, all chks == 0
-        %chck3 = sum(abs(trial_selector_end(:,L) - nreps(i,:)'))== 0;
-        %%all trls are used
-        
-        % Check for empty bins, for piece of mind
+
+        % Check for empty bins, for peace of mind
         if sum(isnan(pseudo_trialD(:))) ~= 0
             error('Warning: At least one NaN pseudotrial generated! Something is off here -- maybe fewer than L trials in some conditions?')
         end
@@ -150,7 +145,7 @@ for i = 1:length(subjects)
                     
                     labels_train = [ones(1,L-1) 2*ones(1,L-1)];
                     
-                    % for piece of mind
+                    % for peace of mind
                     if (sum(isnan(MEEG_training_data))) > 0
                         error('some training data is empty! aborting...')
                     end
@@ -160,9 +155,7 @@ for i = 1:length(subjects)
                     %(see README in matlab folder of the libsvm toolbox)
                     model = svmtrain(labels_train', MEEG_training_data' ,'-s 0 -t 0 -q');  %#ok<SVMTRAIN> -s 0 C-SVM, -t 0 linear, -q no output
                     
-                 
-                    
-                    
+
                     %% Test
                     if ~params.timetime
                         test_times= time_point_train;
@@ -177,7 +170,7 @@ for i = 1:length(subjects)
            
                         % Class labels (1-A or 2-B) - size must be m by 1
                         labels_test  = [1 2];
-                        %again, for extra piece of mind
+                        %again, for extra peace of mind
                         if (sum(isnan(MEEG_testing_data))) > 0
                             error('some test data is empty! aborting...')
                         end
