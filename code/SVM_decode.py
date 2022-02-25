@@ -9,6 +9,18 @@ import warnings
 #Within-subject decoding routine for EEG data
 #Adapted from pseudocode provided by Radoslaw Cichy (Cichy et al. 2014)
 
+# Classification function designed to run in parallel or sequentially (it takes a while, parallel is preferred)
+
+# Input: perm = permutation number out of 200
+# params = contains variable identifying timing test or not
+# ncond = number of conditions 
+# nchan = number of channels
+# nt = number of trials for participant
+# D = data structure containing trial data 
+# L = number of folds (default = 4) 
+# K = data structure containing binned trials
+# i = participant number 
+
 def parallel_decode_fun(perm,params,ncond,nchan,nt,D,L,K,i):
     warnings.filterwarnings(action='ignore', message='Mean of empty slice') #ignoring this warning because there will be empty slices, since this is a sparse array, it isn't actually a problem
     permutedD= []
@@ -30,7 +42,7 @@ def parallel_decode_fun(perm,params,ncond,nchan,nt,D,L,K,i):
             pseudo_trialD[j,:,:,step] = np.nanmean(permutedD[j][:,:,int(trial_selector_start) : int(trial_selector_end)], axis=2)
 
 
-    # Check for empty bins, for piece of mind
+    # Check for empty bins, for peace of mind
 
     if (np.any(np.isnan(pseudo_trialD[:]))):
         return("Warning: At least one NaN pseudotrial generated! Something is off here -- maybe fewer than L trials in some conditions?")
@@ -120,6 +132,16 @@ def parallel_decode_fun(perm,params,ncond,nchan,nt,D,L,K,i):
     return(DAperm, perm)
 
 
+
+
+# Main decoding function
+# Input: X = data structure containing channel data 
+# Y = corresponding trial condition labels 
+# S = corresponding participant numbers 
+# params = some decoding parameters 
+# parforArg = boolean, run in parallel or sequentially 
+# times = range of time points
+
 def decode_within_SVM(X, Y, S, params, parforArg, times):
 
     warnings.filterwarnings(action='ignore', message='Mean of empty slice') #ignoring this warning because there will be empty slices, since this is a sparse array, it isn't actually a problem
@@ -141,9 +163,7 @@ def decode_within_SVM(X, Y, S, params, parforArg, times):
 
     GroupDA = []
     nreps = np.array([[sum((Y==k)&(S==j)) for k in conds] for j in subjects])
-     
 
-    
     # flexible bin size to deal with varying number of
     # trials/condition/participant
     # using algo from https://www.geeksforgeeks.org/split-the-number-into-n-parts-such-that-difference-between-the-smallest-and-the-largest-part-is-minimum/
@@ -160,12 +180,10 @@ def decode_within_SVM(X, Y, S, params, parforArg, times):
             cond.append(bins)
         K.append(cond)
     
-
-
     K=np.array(K)
               
-           
-                    
+    # Loop over all participants
+    
     for i in range(0,len(subjects)):
 
         x=X[:,:,S==subjects[i]]
@@ -191,12 +209,9 @@ def decode_within_SVM(X, Y, S, params, parforArg, times):
 
         param=[[perm,params,ncond,nchan,nt,D,L,K,i]for perm in range(0,nperms)]
 
-
-
         num_cores = multiprocessing.cpu_count()
-
-
-
+        
+        # Decode in parallel or sequentially 
         if parforArg:
             results=Parallel(n_jobs=num_cores)(delayed(parallel_decode_fun)(perm,params,ncond,nchan,nt,D,L,K,i) for perm in range(0,nperms))
         else:
