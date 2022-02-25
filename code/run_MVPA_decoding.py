@@ -164,6 +164,3 @@ if SaveAll:
     results['results']['out'] = out
 
     scipy.io.savemat('../Results/'+out, results, do_compression=True)
-
-
-
