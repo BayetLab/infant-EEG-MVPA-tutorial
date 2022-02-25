@@ -8,7 +8,7 @@ import warnings
 # Walther, A., et al., Reliability of dissimilarity measures for multi-voxel pattern analysis, NeuroImage (2015), 
 #http://dx.doi.org/10.1016/j.neuroimage.2015.12.012
 
-# Classification function designed to run in parallel or sequentially (it takes a while, parallel is preferred)
+# Decoding function designed to run in parallel or sequentially (it takes a while, parallel is preferred)
 
 # Input: perm = permutation number out of 200
 # params = contains variable identifying timing test or not
