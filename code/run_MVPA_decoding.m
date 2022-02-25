@@ -6,11 +6,11 @@ clear all  %#ok<CLALL>
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Data path and file
 DataPath      = '../data';
-ToolboxesPath = '../non-shared-toolboxes'; # See README for complete description of additional dependent functions
-Datafile      = 'Infants_included.mat'; # Adjust file name here to decode on different data sets
+ToolboxesPath = '../non-shared-toolboxes'; % See README for complete description of additional toolboxes that could not be shared. Change this path to the folder containing dependencies
+Datafile      = 'Infants_included.mat'; % Adjust file name here to decode on different data sets
 
 % Run
-parforArg          = Inf;   % 0 = no parfor; Inf = parfor
+parforArg          = Inf;   % 0 = no parfor; Inf = parfor (parallel recommended)
 ExitMatlabWhenDone = false; % if running as batch on a cluster
 SaveAll            = true;
 
