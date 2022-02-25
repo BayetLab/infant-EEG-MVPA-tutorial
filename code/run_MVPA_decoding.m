@@ -6,8 +6,8 @@ clear all  %#ok<CLALL>
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Data path and file
 DataPath      = '../data';
-ToolboxesPath = '../non-shared-toolboxes';
-Datafile      = 'Infants_included.mat';
+ToolboxesPath = '../non-shared-toolboxes'; # See README for complete description of additional dependent functions
+Datafile      = 'Infants_included.mat'; # Adjust file name here to decode on different data sets
 
 % Run
 parforArg          = Inf;   % 0 = no parfor; Inf = parfor
