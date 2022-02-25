@@ -1,229 +1,235 @@
-from sklearn import svm
-from sklearn import metrics
-import numpy as np
-import multiprocessing
-from joblib import Parallel, delayed
-import time
-import warnings
+function [GroupDA, params, nreps] = SVM_decode(X, Y, S, params, parforArg )
 
-#Within-subject decoding routine for EEG data
-#Adapted from pseudocode provided by Radoslaw Cichy (Cichy et al. 2014)
+%% Within-subject decoding routine for adult EEG data
+% Adapted from pseudocode provided by Radoslaw Cichy (Cichy et al. 2014)
 
-def parallel_decode_fun(perm,params,ncond,nchan,nt,D,L,K,i):
-    warnings.filterwarnings(action='ignore', message='Mean of empty slice') #ignoring this warning because there will be empty slices, since this is a sparse array, it isn't actually a problem
-    permutedD= []
-    for j in range(0,ncond):
-        permutedD.append(D[j][:,:,np.random.permutation(D[j].shape[2])])    #trial order is randomized separately in each condition, with flexible length to accomodate varying numbers of repetitions per condition
+%% Parameters and path
+% Parameters
+ncond       = length(unique(Y));
+conds       = unique(Y);
+subjects    = unique(S);
+nchan       = size(X,1);
+nt          = size(X,2); % a.k.a. num. samples
+L           = params.L;
+nsubj       = length(unique(S));
+nperms      = params.num_permutations;
+disp(['...Decoding ',num2str(ncond), ' conditions on data from ',num2str(nsubj),' participants and ',num2str(nchan),' channels'])
 
-
-    pseudo_trialD = np.empty([ncond, nchan , nt, L])
-
-    for j in range(0,ncond):
-        for step in range(0,L):
-            if step == 0:
-                trial_selector_start = 0
-            else:
-                trial_selector_start = np.sum(K[i,j,0:step])
-
-            trial_selector_end = np.sum(K[i,j,0:step+1])
-
-            pseudo_trialD[j,:,:,step] = np.nanmean(permutedD[j][:,:,int(trial_selector_start) : int(trial_selector_end)], axis=2)
+% Initialize group results matrices
+if ~params.timetime
+    GroupDA = NaN([nsubj, nt, ncond, ncond]);
+else
+    GroupDA = NaN([nsubj, nt, nt, ncond, ncond]);
+end
+GroupA  = NaN([nsubj, nt, ncond, ncond, nchan]);
+nreps = NaN([nsubj ncond]);
+for j=1:nsubj; nreps(j,:) = arrayfun(@(i) sum((Y==conds(i))&(S==subjects(j))),1:ncond); end
 
 
-    # Check for empty bins, for piece of mind
 
-    if (np.any(np.isnan(pseudo_trialD[:]))):
-        return("Warning: At least one NaN pseudotrial generated! Something is off here -- maybe fewer than L trials in some conditions?")
+% flexible bin size to deal with varying number of
+% trials/condition/participant
+% using algo from https://www.geeksforgeeks.org/split-the-number-into-n-parts-such-that-difference-between-the-smallest-and-the-largest-part-is-minimum/
+zp=L*ones(size(nreps)) - mod(nreps,L);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%error(num2str(size(zp)))
 
 
-    if ~params['timetime']:
-        DAperm=np.empty([nt, ncond, ncond])
-    else:
-        DAperm=np.empty([nt, nt, ncond, ncond])
-    DAperm[:] = np.NaN
 
-    for condA in range(0,ncond):
-   
-        for condB in range(condA+1,ncond): #upper triangle
-     
-            # Loop through all times (time points are independent)
-            for time_point_train in range(0,nt):
+K=repmat(floor(nreps./L), [1 1 L]);
+
+for k = 1:L
+    for j = 1:nsubj
+        for i = 1:ncond
+            if k > zp(j,i)
+                K(j,i, k) = K(j,i,k)+1;
+            end
+        end
+    end
+end
+
+
+for i = 1:length(subjects)
+    tic
+    
+    % Prepare subject data
+    disp(['....Starting participant ',num2str(i),'/', num2str(nsubj)])
+    x=X(:,:,S==subjects(i)); % nchan x frames x ntrials
+    y=Y(S==subjects(i)); % ntrials
+    
+    % Fill data matrix D   
+    D= {[]};
+    for j = 1:ncond
+        D{j} = x(:,:,y==conds(j));%flexible length accomodates varying numbers of repetitions per condition
+    end
+
+    % Initialize individual results matrices
+    if ~params.timetime
+        DA = NaN(nperms,nt,ncond,ncond);
+    else
+        DAtt = NaN(nperms,nt,nt, ncond,ncond);
+    end
+    
+    
+    % Initialize waitbar
+    ParallelQueue=parallel.pool.DataQueue;
+    hwait = waitbar(0, ['Please wait, working on participant ',num2str(i),'/', num2str(nsubj),'...']);
+    afterEach(ParallelQueue, @nUpdateWaitbar);
+    progress_p = 1;
+
+   parfor (perm = 1:nperms, parforArg)%set parforarg to 0 to do a simple for loop instead of parfor
+
+        send(ParallelQueue, perm);
+        
+        %% Form L pseudotrials per condition based on random permutation of trial order within each condition
+        
+        % Randomly re-order repetitions
+        permutedD= {[]};
+        for j = 1:ncond
+            permutedD{j} = D{j}(:,:,randperm(size(D{j},3)));%trial order is randomized separately in each condition, with flexible length to accomodate varying numbers of repetitions per condition
+        end
+        
+    
+        % Binning data into L pseudo trials:
+        pseudo_trialD = NaN(ncond, nchan , nt, L);
+        trial_selector_start = NaN([ncond, L]);
+        trial_selector_end = NaN([ncond, L]);
+        for j = 1:ncond
+            for step = 1:L
                 
-
-                # Train
-                # Train data
-                # L-1 pseudo trials go to testing set, the Lth to training set
-                # size of train set must be m by n where m is number of
-                # instances and n number of features
-                # must be shape (m, n_features)
-
-                MEEG_training_data =np.concatenate(( np.squeeze(pseudo_trialD[condA,:, time_point_train, 0:-1]),
-                                    np.squeeze(pseudo_trialD[condB, :, time_point_train, 0:-1])),1).T
-
-              
-                # Class labels (1-A or 2-B) - size must be m by 1
-                labels_train = np.concatenate((np.ones([1,L-1]).astype(int),
-                                               2*np.ones([1,L-1]).astype(int)), 1)[0]
-
-
-                # for peace of mind
-
-                if (np.any(np.isnan(MEEG_training_data))):
-                    return('some training data is empty! aborting...')
-
-
-                # SVM classification with sklearn
-
-
-                clf = svm.SVC(kernel = 'linear', decision_function_shape='ovo', gamma='auto')
-                model = clf.fit(MEEG_training_data,labels_train)
-
-
-                # Test
-                if ~params['timetime']:
-                    test_times= [time_point_train]
-                else:
-                    test_times=list(range(0,nt))
-
-
-
-         
-                for time_point_test in test_times:
+                if step == 1
+                    trial_selector_start(j,step) = 1;
+                else
+                    trial_selector_start(j,step) = 1 + sum(K(i,j,1:(step-1)));
+                end
+                trial_selector_end(j,step) = sum(K(i,j,1:step));
+                 
+                pseudo_trialD(j,:,:,step) = nanmean(permutedD{j}(:,:,trial_selector_start(j,step) : trial_selector_end(j,step)), 3);
+                
+                
+            end
+        end
+        
+        
+        %chck1 = prod(prod(trial_selector_start(:,2:L) -
+        %trial_selector_end(:,1:(L-1)))) == 1; % no overlap between bins, all chcks == 1
+        %chck2 = sum(sum(abs(trial_selector_end - trial_selector_start +
+        %1 - squeeze(K(i,:,:))))) == 0; % bin sizes as specified by K, all chks == 0
+        %chck3 = sum(abs(trial_selector_end(:,L) - nreps(i,:)'))== 0;
+        %%all trls are used
+        
+        % Check for empty bins, for piece of mind
+        if sum(isnan(pseudo_trialD(:))) ~= 0
+            error('Warning: At least one NaN pseudotrial generated! Something is off here -- maybe fewer than L trials in some conditions?')
+        end
+        
+        %% Loop through all pair-wise combinations of conditions
+        if ~params.timetime %#ok<PFBNS>
+            DAperm=NaN(nt, ncond, ncond);
+        else
+            DAperm=NaN(nt, nt, ncond, ncond);
+        end
+       
+        
+        for condA = 1:ncond
+            for condB = (condA+1):ncond % upper triangle
+                
+                % Loop through all times (time points are independent)
+                for time_point_train = 1:nt
                     
-
-                    MEEG_testing_data=np.concatenate((np.squeeze(pseudo_trialD[condA, :, time_point_test,-1]).reshape(1,-1),
-                                                      np.squeeze(pseudo_trialD[condB, :, time_point_test,-1]).reshape(1,-1)))
-
+                    %% Train
+                    % Train data
+                    % L-1 pseudo trials go to testing set, the Lth to training set
+                    % size of train set must be m by n where m is number of
+                    % instances and n number of features
+                    MEEG_training_data=[squeeze(pseudo_trialD(condA,:, time_point_train, 1:end-1)) , ...
+                        squeeze(pseudo_trialD(condB, :, time_point_train, 1:end-1))];%chan x (2* (L-1))
+                    % Class labels (1-A or 2-B) - size must be m by 1
+                    
+                    
+                    
+                    labels_train = [ones(1,L-1) 2*ones(1,L-1)];
+                    
+                    % for piece of mind
+                    if (sum(isnan(MEEG_training_data))) > 0
+                        error('some training data is empty! aborting...')
+                    end
+                    
+                    % SVM classification with libsvm
+                    % (https://www.csie.ntu.edu.tw/~cjlin/libsvm/)
+                    %(see README in matlab folder of the libsvm toolbox)
+                    model = svmtrain(labels_train', MEEG_training_data' ,'-s 0 -t 0 -q');  %#ok<SVMTRAIN> -s 0 C-SVM, -t 0 linear, -q no output
+                    
+                 
+                    
+                    
+                    %% Test
+                    if ~params.timetime
+                        test_times= time_point_train;
+                    else
+                        test_times=1:nt;
+                    end
+                    for time_point_test = test_times
                         
-                    # Class labels (1-A or 2-B) - size must be m by 1
-
-                    labels_test  = [1, 2]
-
-                    #again, for extra peace of mind
-                    if (np.any(np.isnan(MEEG_testing_data))):
-                        return('some testing data is empty! aborting...')
-
-
-
-                    predictions = clf.predict(MEEG_testing_data)
-
-                    accuracy = metrics.accuracy_score(labels_test, predictions, normalize = True)
-                    accuracy = accuracy*100
-                    
-                    if ~params['timetime']:
-                        DAperm[time_point_train,condA,condB]=accuracy
-                    else:
-                        DAperm[time_point_train,time_point_test,condA,condB]=accuracy
-                    
-
- 
-    return(DAperm, perm)
-
-
-def decode_within_SVM(X, Y, S, params, parforArg, times):
-
-    warnings.filterwarnings(action='ignore', message='Mean of empty slice') #ignoring this warning because there will be empty slices, since this is a sparse array, it isn't actually a problem
-    
-    # Parameters
-
-    ncond       = len(np.unique(Y))
-    conds       = np.unique(Y)
-    subjects    = np.unique(S)
-    nchan       = np.shape(X)[0]
-    nt          = np.shape(X)[1] # a.k.a. num. samples
-    L           = params['L']
-    nsubj       = len(np.unique(S))
-    nperms      = params['num_permutations']
-
-    print('...Decoding '+str(ncond)+ ' conditions on data from '+str(nsubj)+' participants and '+str(nchan)+' channels')
-
-    # Initialize group results matrices
-
-    GroupDA = []
-    nreps = np.array([[sum((Y==k)&(S==j)) for k in conds] for j in subjects])
-     
-
-    
-    # flexible bin size to deal with varying number of
-    # trials/condition/participant
-    # using algo from https://www.geeksforgeeks.org/split-the-number-into-n-parts-such-that-difference-between-the-smallest-and-the-largest-part-is-minimum/
-
-    K = []
-    for sub in range(0,nsubj):
-        cond = []
-        for c in range(0,ncond):
-            bins = np.floor_divide(nreps[sub,c],L) * np.ones([L])
-            count = nreps[sub,c]
-            for b in range(0,L):
-                if(sum(bins)<count):
-                    bins[b] = bins[b]+1
-            cond.append(bins)
-        K.append(cond)
-    
-
-
-    K=np.array(K)
-              
+                        % Test set
+                        MEEG_testing_data=[squeeze(pseudo_trialD(condA, :, time_point_test, end))' , ...
+                            squeeze(pseudo_trialD(condB, :, time_point_test,end))'];%chan*2                    
            
+                        % Class labels (1-A or 2-B) - size must be m by 1
+                        labels_test  = [1 2];
+                        %again, for extra piece of mind
+                        if (sum(isnan(MEEG_testing_data))) > 0
+                            error('some test data is empty! aborting...')
+                        end
+                        
+                        % Predict
+                        [~, accuracy, ~] = svmpredict(labels_test', MEEG_testing_data' , model, '-q');
+                        if ~params.timetime
+                            DAperm(time_point_train,condA,condB)=accuracy(1);
+                        else
+                            DAperm(time_point_train,time_point_test,condA,condB)=accuracy(1);
+                        end
+                        
+                    end
                     
-    for i in range(0,len(subjects)):
-
-        x=X[:,:,S==subjects[i]]
-        y=Y[S==subjects[i]]
-        yhist=np.array([len(y[y==x]) for x in Y])        
-
-        if np.any(yhist<L):
-            print("Participant "+str(i+1)+" does not have enough trials in at least 1 condition and has been skipped")
-            continue
-
-        print('....Starting participant '+str(i+1)+'/'+str(nsubj))
-
-
-        start=time.time()
-
-
-        D=[]
-        for j in range(0,ncond):
-            D.append(x[:,:,y==conds[j]])
-
-        DA=[]
-
-
-        param=[[perm,params,ncond,nchan,nt,D,L,K,i]for perm in range(0,nperms)]
-
-
-
-        num_cores = multiprocessing.cpu_count()
-
-
-
-        if parforArg:
-            results=Parallel(n_jobs=num_cores)(delayed(parallel_decode_fun)(perm,params,ncond,nchan,nt,D,L,K,i) for perm in range(0,nperms))
-        else:
-            results=[parallel_decode_fun(perm,params,ncond,nchan,nt,D,L,K,i) for perm in range(0,nperms)]
-            
-
-        end=time.time()
-        print(str((end-start)/60)+" minutes")
+                end
+                
+            end
+        end
         
-        for res in results:
-            DA.append(np.asarray(res[0]))
-
-        DA=np.asarray(DA)
+        %% Append permutation result to individual results matrix
+        % DA updated outside of loops to comply with classification restrictions (see http://blogs.mathworks.com/loren/2009/10/02/using-parfor-loops-getting-up-and-running/#12)
+        if ~params.timetime
+            DA(perm,:,:,:)=DAperm;
+        else
+            DAtt(perm,:,:,:,:)=DAperm;
+        end
+       
         
-        # average over permutations and append to group results matrix
+  
+  
+   end
+   
 
-        DA_end=np.squeeze(np.nanmean(DA,0))
-        GroupDA.append(DA_end)   # nsubj x  nt x ncond x ncond
-      
-    out = {}
-    out['results'] = {}
-    out['results']['DA'] = GroupDA
-    out['results']['params_decoding'] = params
-    out['results']['nreps'] = nreps
-    out['results']['times'] = times
+    %% average over permutations and append to group results matrix
+    if ~params.timetime
+        DA_end=squeeze(nanmean(DA,1));
+        GroupDA(i,:,:,:)= DA_end;% nsubj x  nt x ncond x ncond
+    else
+        DA_end=squeeze(nanmean(DAtt,1));
+        GroupDA(i,:,:,:,:)= DA_end;% nsubj x ntx nt x ncond x ncond
+    end
+
     
+    toc
 
-    return(out)
-
-
+    close(hwait)
+    
+    
+    
+end
+    function nUpdateWaitbar(~)
+        waitbar(progress_p/nperms, hwait);
+        progress_p = progress_p + 1;
+    end
+end
