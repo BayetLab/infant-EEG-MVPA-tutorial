@@ -1,10 +1,13 @@
-1) An overview of the various directories/scripts included in the repository, and what each script is used for; 2) At least a brief, step-by-step guide/walk-through describing which scripts to run, in what order, and the resulting output/interpretation of each step.
-
-
 # infant-EEG-MVPA-tutorial
-Tutorial toolbox for MVPA decoding of EEG data 
-Classification is implemented in Python and Matlab
-Euclidean distance based decoding is implemented in python only
+Tutorial toolbox for MVPA decoding of EEG data    
+Classification is implemented in Python and Matlab     
+Euclidean distance based decoding implemented in python only     
+
+### Directories
+├── code                   # Matlab and Python decoding scripts  
+│   └── helpers            # supporting scripts and files     
+├── data                   # infant and adult processed input data files       
+└── README.md      
 
 # Python Workflow 
 
@@ -15,8 +18,8 @@ Input data should be in the form of a .mat file containing four structs
 -> times : array of size 1 x number of time points; contains all time points in the epoch of interest     
 
 ### Arguments   
-  -p --path                Specify path to input EEG data folder, relative or absolute       
-  -f --file                Name of input EEG data file    
+  -p --path                Specify path to input data folder, relative or absolute       
+  -f --file                Name of input data file    
   -par --parallel          1 to run in parallel (distributed on multiple cores), 0 to run sequentially (default=1)   
   -s --save                1 to save all decoding output, 0 to run without saving (default=1)   
   -d --decode_method       Name of decoding method function ('SVM_decode' or 'Euclidean_decode')   
@@ -29,11 +32,12 @@ Input data should be in the form of a .mat file containing four structs
 -> parameters with defaults do not need to be included unless you want to change the default values   
       
 ### Example usage
-      In command line:
+```python
+#      In command line:
         python run_MVPA_decoding.py -p 'C:/user/pathtodata/data/' -f 'Infants_all.mat' -par 1 -s 1 -d 'SVM_decode' -n 200 -k 4 -ts -50 -te 500 -tt False     
-      or: 
+#      or: 
         python run_MVPA_decoding.py (arguments set manually in script, not recommended)
-      
+```      
 ### Output  
 Matlab (.mat) file containing structs ‘out’ and ‘results’    
   - The ‘out’ field contains the string name of the file    
@@ -53,30 +57,110 @@ Matlab (.mat) file containing structs ‘out’ and ‘results’
 
 
 ### Auxiliary python functions 
-(user doesn't call these functions)
+(user doesn't call these functions)    
 
-  SVM_decode.py      
+SVM_decode.py      
   - Decoding with classification accuracy, called by run_MVPA_decoding.py     
-  Euclidean_decode.py       
+
+
+Euclidean_decode.py       
   - Decoding with euclidean distance, called by run_MVPA_decoding.py      
 
 ### Parsing output for analysis
-
+```python
+    # Example:
+    
     from scipy.io import loadmat
     
     # provide path to folder where results are stored
-    
     DataPath = 'Results/'
     
-    # define the name of the output file you want to look at
-    
+    # define the name of the output file
     fname='Results_Adults_all_decode_within_SVM_10.06.2021_12.49.15.mat'
     
-    # Extract the decoding accuracy results 
-    
+    # Extract the decoding accuracy results     
     data = loadmat(DataPath+fname)['results'][0,0]
     DA = data['DA']
+```    
 
+### Calculate average classification accuracy over the time series
+
+```python
+from scipy.stats import sem
+import matplotlib.pyplot as plt
+import numpy as np
+import mne.stats as mstats
+
+# number of participants
+numParts = np.shape(DA)[0]
+
+# set time window
+times = [-50, 500]
+# set baseline length 
+base = 50 
+# get array indices
+timeInds = [times[0] + base, times[1] + base]
+
+# calculate average classification accuracy for each participant over all conditions at each time point
+partAccuracies = np.array([[np.nanmean(np.ndarray.flatten(DA[part,point,:,:])) for point in range(timeInds[0],timeInds[1])] for part in range(np.shape(PyInfDA)[0])])
+
+# calculate the group average classification accuracy over all conditions at each time point
+groupAccuracy = np.array([np.nanmean(np.ndarray.flatten(DA[:,point,:,:])) for point in range(timeInds[0],timeInds[1])])
+
+```
+### Significance of classification accuracy against chance
+
+```python
+## Calculate significance of group average classification
+
+b = np.full([numParts,550],50) # What are you testing against: in this case, theoretical chance of 50%
+
+T_obs, clusters, cluster_p_values, H0 = mstats.permutation_cluster_test([partAccuracies,b], tail=1, out_type="mask")
+
+```
+### Plot time series classification accuracy
+```python
+## Plot group accuracy, participant accuracies over time series, and bars indicating where accuracy was significantly above chance
+
+plt.figure(figsize=(20,10))  
+
+# Plot all participant accuracies  
+for part in partAccuracies:
+    plt.plot(range(times[0],times[1]),part)
+
+# Calculate standard error 
+error = [sem(partAccuracies[:,i]) for i in range(timeInds[0],timeInds[1])]
+
+# Plot standard error
+plt.fill_between(range(times[0],times[1]), groupAccuracy-error,groupAccuracy+error, alpha=0.3, color="teal")
+
+# Plot group average accuracy
+plt.plot(range(times[0],times[1]),groupAccuracy, linewidth=5,color="black", label="Group average accuracy")
+
+# Plot significance bars
+plt.subplot
+for i_c, c in enumerate(iallclusters):
+    c = c[0]
+    if iallcluster_p_values[i_c] < 0.05:
+        h = plt.axvspan(c.start-base, c.stop-base, 
+                        color='black', alpha=0.5,ymin=0.17,ymax=0.19)
+    
+plt.hlines(50, -50, 500)
+
+plt.ylabel('Classification Accuracy %',fontsize=30)   
+plt.xlabel('Time (ms)',fontsize=30)
+
+plt.ylim(35, 90)
+plt.xlim(times)
+
+plt.tick_params(axis='x', labelsize=30)  
+plt.tick_params(axis='y', labelsize=30)  
+
+plt.legend(framealpha=1, frameon=True, fontsize=20,loc="upper right")
+
+plt.show()
+
+```
 
 # Matlab Workflow
 
@@ -142,23 +226,15 @@ Matlab (.mat) file containing structs ‘out’ and ‘results’
 
 
 ### Parsing output for analysis
-
-    from scipy.io import loadmat
+    % Example:
     
-    # provide path to folder where results are stored
-    
+    % provide path to folder where results are stored
     DataPath = 'Results/'
     
-    # define the name of the output file you want to look at
+    % define the name of the output file
+    fname ='Results_Adults_all_decode_within_SVM_10.06.2021_12.49.15.mat'
     
-    fname='Results_Adults_all_decode_within_SVM_10.06.2021_12.49.15.mat'
-    
-    # Extract the decoding accuracy results 
-    
-    data = loadmat(DataPath+fname)['results'][0,0]
-    DA = data['DA']
-    
-    
-    
-   
+    % load results data
+    load(fullfile(DataPath,fname(1).name),'results');
 
+ 
