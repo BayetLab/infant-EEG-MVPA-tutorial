@@ -4,11 +4,24 @@ Classification is implemented in Python and Matlab
 Euclidean distance based decoding implemented in python only     
 
 ### Directories
-├── code                   # Matlab and Python decoding scripts  
-│   └── helpers            # supporting scripts and files     
-├── data                   # infant and adult processed input data files       
+```
+.
+├── code                       # Matlab and Python decoding scripts  
+│   └── Euclidean_decode.py    # Supporting Python script for calculating cross validated Euclidean distance, user does not run 
+│   └── SVM_decode.m           # Supporting Matlab script for running classification, user does not run
+│   └── SVM_decode.py          # Supporting Python script for running classification, user does not run
+│   └── run_MVPA_decoding.m    # Matlab script that the user runs to perform MVPA
+│   └── run_MVPA_decoding.py   # Python script that the user runs to perform MVPA
+│   └── helpers                # Other supporting scripts and files   
+│       └── dir2.m           
+├── data                       # Infant and adult processed input data files       
+│   └── Adults_all.mat         # All adult data
+│   └── Adults_included.mat    # Adult data included in bayet et. al. 2020
+│   └── Infants_all.mat        # All infant data
+│   └── Infants_included.mat   # Infant data included in bayet et. al. 2020
+│   └── README.md
 └── README.md      
-
+```
 # Python Workflow 
 
 Input data should be in the form of a .mat file containing four structs      
