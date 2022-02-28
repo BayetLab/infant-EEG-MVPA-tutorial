@@ -20,6 +20,7 @@ Euclidean distance based decoding implemented in python only
 │   └── Infants_all.mat        # All infant data
 │   └── Infants_included.mat   # Infant data included in bayet et. al. 2020
 │   └── README.md
+└── ex_accuracyplot.jpg        # Example output from the plotting code described below
 └── README.md      
 ```
 # Python Workflow 
@@ -30,7 +31,7 @@ Input data should be in the form of a .mat file containing four structs
 -> Y : array of size 1 x total number of trials; containing condition labels corresponding to all trials       
 -> times : array of size 1 x number of time points; contains all time points in the epoch of interest     
 
-### Arguments   
+### Parameters   
   -p --path                Specify path to input data folder, relative or absolute       
   -f --file                Name of input data file    
   -par --parallel          1 to run in parallel (distributed on multiple cores), 0 to run sequentially (default=1)   
@@ -81,10 +82,14 @@ Euclidean_decode.py
 
 ### Parsing output for analysis
 ```python
-    # Example:
-    
-    from scipy.io import loadmat
-    
+from scipy.stats import sem
+import matplotlib.pyplot as plt
+import numpy as np
+import mne.stats as mstats
+from scipy.io import loadmat
+```
+```python
+
     # provide path to folder where results are stored
     DataPath = 'Results/'
     
@@ -99,10 +104,6 @@ Euclidean_decode.py
 ### Calculate average classification accuracy over the time series
 
 ```python
-from scipy.stats import sem
-import matplotlib.pyplot as plt
-import numpy as np
-import mne.stats as mstats
 
 # number of participants
 numParts = np.shape(DA)[0]
@@ -183,8 +184,8 @@ Input data should be in the form of a .mat file containing four structs
 -> Y : array of size 1 x total number of trials; containing condition labels corresponding to all trials       
 -> times : array of size 1 x number of time points; contains all time points in the epoch of interest   
 
-### Arguments   
--> All arguments are defined manually at the begining of the script 
+### Parameters   
+-> All parameters are defined manually at the begining of the script 
 
 ```matlab
 DataPath      = '../data';
@@ -239,8 +240,7 @@ Matlab (.mat) file containing structs ‘out’ and ‘results’
 
 
 ### Parsing output for analysis
-    % Example:
-    
+
     % provide path to folder where results are stored
     DataPath = 'Results/'
     
