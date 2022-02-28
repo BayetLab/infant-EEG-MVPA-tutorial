@@ -1,10 +1,13 @@
-X data, processed and z-scored to baseline (channels x samples x trials)
-Y trial condition (1 x trials)
-S participants (1 x trials)
-times time vector (1 x samples)
-nreps number of trials per condition (participants x conditions)
+# Notes about data sets
 
-Conditions are coded as integers from 1 to 8
+Structs in results:
+- X data, processed and z-scored to baseline (channels x samples x trials)
+- Y trial condition (1 x trials)
+- S participants (1 x trials)
+- times time vector (1 x samples)
+- nreps number of trials per condition (participants x conditions)
+
+-> Conditions are coded as integers from 1 to 8
 
 Four sample datasets are provided: 
 - Adults_all N=9 all available artifact-free data
