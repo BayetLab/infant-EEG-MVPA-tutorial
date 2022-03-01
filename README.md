@@ -23,6 +23,12 @@ Euclidean distance based decoding implemented in python only
 └── ex_accuracyplot.jpg        # Example output from the plotting code described below
 └── README.md      
 ```
+
+If using these data, please cite:
+
+- Ashton, K., Zinszer, B. D., Cichy, R. M., Nelson III, C. A., Aslin, R. N., & Bayet, L. (2022). Time-resolved multivariate pattern analysis of infant EEG data: A practical tutorial. Developmental Cognitive Neuroscience, 101094
+- Bayet, L., Zinszer, B. D., Reilly, E., Cataldo, J. K., Pruitt, Z., Cichy, R. M., Nelson III, C. A., & Aslin, R. N. (2020). Temporal dynamics of visual representations in the infant brain. Developmental cognitive neuroscience, 45, 100860
+
 # Python Workflow 
 
 Input data should be in the form of a .mat file containing four structs      
