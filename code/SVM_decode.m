@@ -1,5 +1,5 @@
 
-%% Within-subject decoding routine for adult EEG data
+%% Within-subject time-resolved decoding routine for EEG data
 % Adapted from pseudocode provided by Radoslaw Cichy (Cichy et al. 2014)
 
 # Input: X = data structure containing channel data 
