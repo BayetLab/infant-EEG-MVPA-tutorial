@@ -1,10 +1,14 @@
-function [GroupDA, params, nreps, GroupA] = decode_within_SVM(X, Y, S, params, parforArg )
-% function [GroupDA, params, nreps, GroupA] = decode_within_SVM(X, Y, S, params, parforArg )
-%% Within-subject decoding routine for adult EEG data
+
+%% Within-subject time-resolved decoding routine for EEG data
 % Adapted from pseudocode provided by Radoslaw Cichy (Cichy et al. 2014)
 
-% TODO
-% Consider not including computation of the "activation" variable - unclear how useful here
+# Input: X = data structure containing channel data 
+# Y = corresponding trial condition labels 
+# S = corresponding participant numbers 
+# params = some decoding parameters 
+# parforArg = boolean, run in parallel or sequentially 
+
+function [GroupDA, params, nreps] = SVM_decode(X, Y, S, params, parforArg )
 
 %% Parameters and path
 % Parameters
@@ -28,11 +32,15 @@ GroupA  = NaN([nsubj, nt, ncond, ncond, nchan]);
 nreps = NaN([nsubj ncond]);
 for j=1:nsubj; nreps(j,:) = arrayfun(@(i) sum((Y==conds(i))&(S==subjects(j))),1:ncond); end
 
+
+
 % flexible bin size to deal with varying number of
 % trials/condition/participant
 % using algo from https://www.geeksforgeeks.org/split-the-number-into-n-parts-such-that-difference-between-the-smallest-and-the-largest-part-is-minimum/
 zp=L*ones(size(nreps)) - mod(nreps,L);
+
 K=repmat(floor(nreps./L), [1 1 L]);
+
 for k = 1:L
     for j = 1:nsubj
         for i = 1:ncond
@@ -42,6 +50,7 @@ for k = 1:L
         end
     end
 end
+
 
 for i = 1:length(subjects)
     tic
@@ -56,14 +65,14 @@ for i = 1:length(subjects)
     for j = 1:ncond
         D{j} = x(:,:,y==conds(j));%flexible length accomodates varying numbers of repetitions per condition
     end
-    
+
     % Initialize individual results matrices
     if ~params.timetime
         DA = NaN(nperms,nt,ncond,ncond);
     else
         DAtt = NaN(nperms,nt,nt, ncond,ncond);
     end
-    A = NaN(nperms, nt, ncond, ncond,nchan);
+    
     
     % Initialize waitbar
     ParallelQueue=parallel.pool.DataQueue;
@@ -83,30 +92,28 @@ for i = 1:length(subjects)
             permutedD{j} = D{j}(:,:,randperm(size(D{j},3)));%trial order is randomized separately in each condition, with flexible length to accomodate varying numbers of repetitions per condition
         end
         
+    
         % Binning data into L pseudo trials:
         pseudo_trialD = NaN(ncond, nchan , nt, L);
         trial_selector_start = NaN([ncond, L]);
         trial_selector_end = NaN([ncond, L]);
         for j = 1:ncond
             for step = 1:L
+                
                 if step == 1
                     trial_selector_start(j,step) = 1;
                 else
                     trial_selector_start(j,step) = 1 + sum(K(i,j,1:(step-1)));
                 end
                 trial_selector_end(j,step) = sum(K(i,j,1:step));
+                 
                 pseudo_trialD(j,:,:,step) = nanmean(permutedD{j}(:,:,trial_selector_start(j,step) : trial_selector_end(j,step)), 3);
+                
+                
             end
         end
-        
-        %chck1 = prod(prod(trial_selector_start(:,2:L) -
-        %trial_selector_end(:,1:(L-1)))) == 1; % no overlap between bins, all chcks == 1
-        %chck2 = sum(sum(abs(trial_selector_end - trial_selector_start +
-        %1 - squeeze(K(i,:,:))))) == 0; % bin sizes as specified by K, all chks == 0
-        %chck3 = sum(abs(trial_selector_end(:,L) - nreps(i,:)'))== 0;
-        %%all trls are used
-        
-        % Check for empty bins, for piece of mind
+
+        % Check for empty bins, for peace of mind
         if sum(isnan(pseudo_trialD(:))) ~= 0
             error('Warning: At least one NaN pseudotrial generated! Something is off here -- maybe fewer than L trials in some conditions?')
         end
@@ -117,7 +124,7 @@ for i = 1:length(subjects)
         else
             DAperm=NaN(nt, nt, ncond, ncond);
         end
-        Aperm=NaN(nt, ncond, ncond,nchan);
+       
         
         for condA = 1:ncond
             for condB = (condA+1):ncond % upper triangle
@@ -130,11 +137,15 @@ for i = 1:length(subjects)
                     % L-1 pseudo trials go to testing set, the Lth to training set
                     % size of train set must be m by n where m is number of
                     % instances and n number of features
-                    MEEG_training_data=[squeeze(pseudo_trialD(condA,:, time_point_train, 1:end-1)) , squeeze(pseudo_trialD(condB, :, time_point_train, 1:end-1))];%chan x (2* (L-1))
+                    MEEG_training_data=[squeeze(pseudo_trialD(condA,:, time_point_train, 1:end-1)) , ...
+                        squeeze(pseudo_trialD(condB, :, time_point_train, 1:end-1))];%chan x (2* (L-1))
                     % Class labels (1-A or 2-B) - size must be m by 1
+                    
+                    
+                    
                     labels_train = [ones(1,L-1) 2*ones(1,L-1)];
                     
-                    % for piece of mind
+                    % for peace of mind
                     if (sum(isnan(MEEG_training_data))) > 0
                         error('some training data is empty! aborting...')
                     end
@@ -144,12 +155,7 @@ for i = 1:length(subjects)
                     %(see README in matlab folder of the libsvm toolbox)
                     model = svmtrain(labels_train', MEEG_training_data' ,'-s 0 -t 0 -q');  %#ok<SVMTRAIN> -s 0 C-SVM, -t 0 linear, -q no output
                     
-                    % Activation pattern (Haufe et al. 2014)
-                    w = (model.sv_coef' * full(model.SVs));% http://stackoverflow.com/questions/10131385/matlab-libsvm-how-to-find-the-w-coefficients
-                    latent_s = MEEG_training_data' * w';% can also be approximated by labels_train for simplicity. its covariance should be a scalar in this case.
-                    a = cov(MEEG_training_data') * w' / cov(latent_s);% Haufe et al. 2014 Neuroimage [Eq.5]
-                    Aperm(time_point_train,condA,condB,:)=a;
-                    
+
                     %% Test
                     if ~params.timetime
                         test_times= time_point_train;
@@ -159,10 +165,12 @@ for i = 1:length(subjects)
                     for time_point_test = test_times
                         
                         % Test set
-                        MEEG_testing_data=[squeeze(pseudo_trialD(condA, :, time_point_test, end))' , squeeze(pseudo_trialD(condB, :, time_point_test,end))'];%chan*2                    
+                        MEEG_testing_data=[squeeze(pseudo_trialD(condA, :, time_point_test, end))' , ...
+                            squeeze(pseudo_trialD(condB, :, time_point_test,end))'];%chan*2                    
+           
                         % Class labels (1-A or 2-B) - size must be m by 1
                         labels_test  = [1 2];
-                        %again, for extra piece of mind
+                        %again, for extra peace of mind
                         if (sum(isnan(MEEG_testing_data))) > 0
                             error('some test data is empty! aborting...')
                         end
@@ -189,9 +197,12 @@ for i = 1:length(subjects)
         else
             DAtt(perm,:,:,:,:)=DAperm;
         end
-        A(perm,:,:,:,:)=Aperm;
-
-    end
+       
+        
+  
+  
+   end
+   
 
     %% average over permutations and append to group results matrix
     if ~params.timetime
@@ -201,11 +212,13 @@ for i = 1:length(subjects)
         DA_end=squeeze(nanmean(DAtt,1));
         GroupDA(i,:,:,:,:)= DA_end;% nsubj x ntx nt x ncond x ncond
     end
-    A_end=squeeze(nanmean(A,1));
-    GroupA(i,:,:,:,:)= A_end;% 1 x nt x ncond x ncond x nchan
+
     
     toc
+
     close(hwait)
+    
+    
     
 end
     function nUpdateWaitbar(~)

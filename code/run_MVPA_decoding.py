@@ -13,6 +13,8 @@ import argparse
 import sys
 
 ########## INPUT ARGS
+# Arguments can be manually changed in the script or set when calling the function in the command line (recommended)
+# Some arguments can be left as defults (see README)
 
 
 pars = argparse.ArgumentParser()
@@ -34,8 +36,6 @@ params_decoding = {}
 
 if np.any(args != None):
    
-
-
     if args.path==None: raise Exception("Please enter a valid path to data file") 
     else: DataPath = args.path
 
@@ -64,9 +64,6 @@ if np.any(args != None):
     else: params_decoding['timetime'] = bool(args.time_time)
 
 
-
-
-
     if args.time_start==None:
         st = ParData['times'][0][0]
     else:
@@ -78,17 +75,14 @@ if np.any(args != None):
     params_decoding['Epoch_analysis'] = [ st, en ]
     
 
+# If no command line args are used, defaults are assigned here
+# File names and paths can be manually set here
 
-
-
-
-
-
-else:
+else: 
 
     DataPath      = '../data/'
 
-    Datafile      = 'Infants_included.mat'
+    Datafile      = 'Infants_included.mat' # set data file for decoding here
 
     parforArg          = 1   # 0 = not parallel 1 = parallel
     SaveAll            = True # save output 
@@ -96,7 +90,7 @@ else:
     params_decoding = {}
 
     # Classification
-    params_decoding['function']         = 'decode_euclidean_dist'  #'decode_within_SVM' or 'decode_euclidean_dist'
+    params_decoding['function']         = 'decode_within_SVM'  #'decode_within_SVM' or 'decode_euclidean_dist'
     params_decoding['timetime']        = False  # compute time-time generalization (false: only compute the diagonal such that time_test=time_train)
     params_decoding['num_permutations'] = 200
     params_decoding['L']                = 4     # Number of folds for pseudo-averaging/k-fold
@@ -117,18 +111,13 @@ Labels = ParData['Y']
 # Filter by times/epochs we want to look at
 t = ParData['times'] # time range in ms 
 
-
-
-
-
-
-
 frames = (t>=params_decoding['Epoch_analysis'][0]) & (t<=params_decoding['Epoch_analysis'][1]) # filter for epoch specified in params
 
 selected_epochs = ~np.isnan(Labels) # only applicable if you're filtering labels by setting them to nan, otherwise Labels 
 
 times = t[frames] 
 
+# Filter for participant data within the selected epoch
 x=ParData['X'][:,frames[0],:]
 x=x[:,:,selected_epochs[0]]
 
@@ -164,6 +153,3 @@ if SaveAll:
     results['results']['out'] = out
 
     scipy.io.savemat('../Results/'+out, results, do_compression=True)
-
-
-

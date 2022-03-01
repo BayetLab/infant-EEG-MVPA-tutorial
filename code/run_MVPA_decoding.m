@@ -6,22 +6,22 @@ clear all  %#ok<CLALL>
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Data path and file
 DataPath      = '../data';
-ToolboxesPath = '../non-shared-toolboxes';
-Datafile      = 'Adults_included.mat';
+ToolboxesPath = '../non-shared-toolboxes'; % See README for complete description of additional toolboxes that could not be shared. Change this path to the folder containing dependencies
+Datafile      = 'Infants_included.mat'; % Adjust file name here to decode on different data sets
 
 % Run
-parforArg          = Inf;   % 0 = no parfor; Inf = parfor
+parforArg          = Inf;   % 0 = no parfor; Inf = parfor (parallel recommended)
 ExitMatlabWhenDone = false; % if running as batch on a cluster
-SaveAll            = false;
+SaveAll            = true;
 
 % Classification
-params_decoding.function         = 'decode_within_SVM';
+params_decoding.function         = 'SVM_decode';
 params_decoding.timetime         = false; % compute time-time generalization (false: only compute the diagonal such that time_test=time_train)
 params_decoding.num_permutations = 200;
 params_decoding.L                = 4; % Number of folds for pseudo-averaging/k-fold
 
 % Data selection
-params_decoding.min_cond_rep_per_subj = 1;% NaN/0/1 -> all
+params_decoding.min_cond_rep_per_subj = NaN;  % NaN/0/1 -> all
 params_decoding.Epoch_analysis        = [-50 500];% ms
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -62,10 +62,12 @@ s=S(selected_epochs);
 
 % do classification
 if strcmp(params_decoding.function, 'decode_within_SVM')
-    [results.DA, results.params_decoding, results.nreps,results.A] = decode_within_SVM(x, labels, s, params_decoding, parforArg);
+    [results.DA, results.params_decoding, results.nreps] = SVM_decode(x, labels, s, params_decoding, parforArg);
    % else
     % alternate classification pipelines go here
 end
+
+
 
 % save
 if SaveAll
@@ -73,11 +75,10 @@ if SaveAll
     out = ['Results_', params_decoding.DataName,'_', params_decoding.function, timetime_case];
     out=[out,'_',date,'_',num2str(round(rem(now,1)*100000))];
     results.out=out;
-    if (~exist(fullfile('../results',out),'file')); save(fullfile('../results',out),'out', '-v7.3'); end
+    if (~exist(fullfile('../results',out),'file')); save(fullfile('../results',out),'out'); end
     save(fullfile('../results',out),'results','-append');
 end
 
-%figure;plot(results.times,nanmean(nanmean(reshape(results.DA,[8 550 8*8]),3)',2))
 
 %% Wrap up
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
