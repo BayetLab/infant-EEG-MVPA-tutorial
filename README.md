@@ -121,10 +121,10 @@ base = 50
 # get array indices
 timeInds = [times[0] + base, times[1] + base]
 
-# calculate average classification accuracy for each participant over all conditions at each time point
+# calculate average classification accuracy for each participant over all conditions at each time point, flatten condition x condition matrix to look at pairwise accuracy
 partAccuracies = np.array([[np.nanmean(np.ndarray.flatten(DA[part,point,:,:])) for point in range(timeInds[0],timeInds[1])] for part in range(np.shape(PyInfDA)[0])])
 
-# calculate the group average classification accuracy over all conditions at each time point
+# calculate the group average classification accuracy over all conditions at each time point, flatten condition x condition matrix to look at pairwise accuracy
 groupAccuracy = np.array([np.nanmean(np.ndarray.flatten(DA[:,point,:,:])) for point in range(timeInds[0],timeInds[1])])
 
 ```
