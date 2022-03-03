@@ -1,7 +1,7 @@
 # infant-EEG-MVPA-tutorial
 Tutorial toolbox for MVPA decoding of EEG data    
 Classification is implemented in Python and Matlab     
-Euclidean distance based decoding implemented in python only     
+Euclidean distance based decoding implemented in Python only     
 
 ### Directories
 ```
@@ -28,7 +28,7 @@ Euclidean distance based decoding implemented in python only
 └── README.md      
 ```
 
-If using these data, please cite:
+If using these data or code, please cite:
 
 - Ashton, K., Zinszer, B. D., Cichy, R. M., Nelson III, C. A., Aslin, R. N., & Bayet, L. (2022). Time-resolved multivariate pattern analysis of infant EEG data: A practical tutorial. Developmental Cognitive Neuroscience, 101094
 - Bayet, L., Zinszer, B. D., Reilly, E., Cataldo, J. K., Pruitt, Z., Cichy, R. M., Nelson III, C. A., & Aslin, R. N. (2020). Temporal dynamics of visual representations in the infant brain. Developmental cognitive neuroscience, 45, 100860
