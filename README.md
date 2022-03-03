@@ -12,8 +12,12 @@ Euclidean distance based decoding implemented in python only
 │   └── SVM_decode.py          # Supporting Python script for running classification, user does not run
 │   └── run_MVPA_decoding.m    # Matlab script that the user runs to perform MVPA
 │   └── run_MVPA_decoding.py   # Python script that the user runs to perform MVPA
-│   └── helpers                # Other supporting scripts and files   
-│       └── dir2.m           
+│   └── helpers                # Other supporting scripts and files, channel location information for infant and adult data   
+│       └── dir2.m   
+│       └── chanlocs_bva32.mat 
+│       └── chanlocs_hcgsn129.mat
+│       └── includedchans_bva32.mat
+│       └── includedchans_hcgsn129.mat
 ├── data                       # Infant and adult processed input data files       
 │   └── Adults_all.mat         # All adult data
 │   └── Adults_included.mat    # Adult data included in bayet et. al. 2020
@@ -121,10 +125,10 @@ base = 50
 # get array indices
 timeInds = [times[0] + base, times[1] + base]
 
-# calculate average classification accuracy for each participant over all conditions at each time point
+# calculate average classification accuracy for each participant over all conditions at each time point, flatten condition x condition matrix to look at pairwise accuracy
 partAccuracies = np.array([[np.nanmean(np.ndarray.flatten(DA[part,point,:,:])) for point in range(timeInds[0],timeInds[1])] for part in range(np.shape(PyInfDA)[0])])
 
-# calculate the group average classification accuracy over all conditions at each time point
+# calculate the group average classification accuracy over all conditions at each time point, flatten condition x condition matrix to look at pairwise accuracy
 groupAccuracy = np.array([np.nanmean(np.ndarray.flatten(DA[:,point,:,:])) for point in range(timeInds[0],timeInds[1])])
 
 ```
